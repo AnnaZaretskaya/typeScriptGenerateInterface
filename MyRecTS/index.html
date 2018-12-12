@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>generateInterface</title>
+</head>
+<body>
+<p>
+    Задачка:
+    создать генератор typscript-интерфейсов<br>
+    создать ф-ю generateInterface, которая на вход принимает объект (или массив)
+    ф-я фолжна вернуть строку в которой описан интерфейс объекта
+</p>
+<p>
+    Например:
+</p>
+<p>
+<pre>
+var obj = {
+	id: 123,
+	name: 'testObj',
+	data: {
+		prop1: 'abc'
+		prop2: true
+	}
+};
+</pre>
+<p>
+    generateInterface(obj);
+</p>
+<p>
+    Должна вернуть строку (с переносами строк) в виде:
+</p>
+<p>
+<pre>
+declare interface IObj {
+	id: number;
+	name: string;
+	data: {
+		prop1: string;
+		prop2: boolean;
+	}
+};
+
+</pre>
+</p>
+<p>
+    Обрати внимание что:
+    1) IObj - высосано с пальца.
+    2) объект obj содержит свойство data, которое тоже объект.
+    Значит тут должна быть применена рекурсия(!!!!), что бы ф-я могла обрабатывать объекты любой степени вложености.
+</p>
+<p>
+    Пример 2:
+<pre>
+var obj = {
+	id: 123,
+	name: 'testObj',
+	data: [{
+		prop1: 'abc',
+		prop2: true
+	}, {
+		prop1: 'def',
+		prop3: 300
+	}],
+	otherData: [1, 2, 3]
+};
+</pre>
+</p>
+
+<p>
+    Если какое либо свойство содержит массив, то предполагаем что внутри массива "однотипные" сущности.
+    В примере выше есть 2 массива, первый с объектами второй с числами.
+    Первый массив сложнее, так как у объектов не совпадают свойства.
+    Те свойста, которые встречаются не у всех объектов - считаем "необязательными" (это prop2 и prop3) и помечаем их
+    знаком "?"
+</p>
+<p>
+    Должно выглядеть вот так:
+</p>
+<p>
+<pre>
+declare interface IObj {
+    id: number;
+    name: string;
+    data: {
+        prop1: string;
+        prop2?: boolean;
+        prop3?: number;
+    }[],
+    otherData: number[]
+};
+</pre>
+</p>
+<script src="src.js"></script>
+<script src="index.js"></script>
+</body>
+</html>
+
+
+

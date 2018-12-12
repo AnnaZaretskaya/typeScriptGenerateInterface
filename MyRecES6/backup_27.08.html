@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>generateInterface</title>
+</head>
+<body>
+<p>
+    Задачка:
+    создать генератор typscript-интерфейсов<br>
+    создать ф-ю generateInterface, которая на вход принимает объект (или массив)
+    ф-я фолжна вернуть строку в которой описан интерфейс объекта
+</p>
+<p>
+    Например:
+</p>
+<p>
+<pre>
+var obj = {
+	id: 123,
+	name: 'testObj',
+	data: {
+		prop1: 'abc'
+		prop2: true
+	}
+};
+</pre>
+<p>
+    generateInterface(obj);
+</p>
+<p>
+    Должна вернуть строку (с переносами строк) в виде:
+</p>
+<p>
+<pre>
+declare interface IObj {
+	id: number;
+	name: string;
+	data: {
+		prop1: string;
+		prop2: boolean;
+	}
+};
+
+</pre>
+</p>
+<p>
+    Обрати внимание что:
+    1) IObj - высосано с пальца.
+    2) объект obj содержит свойство data, которое тоже объект.
+    Значит тут должна быть применена рекурсия(!!!!), что бы ф-я могла обрабатывать объекты любой степени вложености.
+</p>
+<p>
+    Пример 2:
+<pre>
+var obj = {
+	id: 123,
+	name: 'testObj',
+	data: [{
+		prop1: 'abc',
+		prop2: true
+	}, {
+		prop1: 'def',
+		prop3: 300
+	}],
+	otherData: [1, 2, 3]
+};
+</pre>
+</p>
+<p>
+    Если какое либо свойство содержит массив, то предполагаем что внутри массива "однотипные" сущности.
+    В примере выше есть 2 массива, первый с объектами второй с числами.
+    Первый массив сложнее, так как у объектов не совпадают свойства.
+    Те свойста, которые встречаются не у всех объектов - считаем "необязательными" (это prop2 и prop3) и помечаем их знаком "?"
+</p>
+<p>
+    Должно выглядеть вот так:
+</p>
+<p>
+<pre>
+declare interface IObj {
+    id: number;
+    name: string;
+    data: {
+        prop1: string;
+        prop2?: boolean;
+        prop3?: number;
+    }[],
+    otherData: number[]
+};
+</pre>
+</p>
+<script src="src.js"></script>
+<script>
+    function generateInterface(object) {
+
+        function stringify(object, tab) {
+            let iteration = -1;
+            let tabs = '\t'.repeat(tab + 1);
+            let resultStringify = '';
+            let resStringifyArrays = '';
+            let currentType = [];
+            let configIteration = -1;
+            let allKeys = [];
+            let config = [];
+            let requiredKeys = [];
+
+            for (let key in object) {
+                switch (typeof object[key]) {
+                    case 'number':
+                        resultStringify +=  tabs + key +': ' + 'number' + ';\n';
+                        break;
+                    case 'string':
+                        resultStringify += tabs + key +': ' + 'string' + ';\n';
+                        break;
+                    case 'boolean':
+                        resultStringify +=  tabs + key +': ' + 'boolean' + ';\n';
+                        break;
+                    case 'function':
+                        resultStringify += tabs + key +': ' + 'function' + ';\n';
+                        break;
+                    case 'undefined':
+                        resultStringify += tabs + key +': ' + 'undefined' + ';\n';
+                        break;
+                    case 'object':
+                        if (object[key] instanceof Array) {
+                            resStringifyArrays = '';
+                            resultStringify +=  tabs + key +': ' + stringifyArrays(object[key], tab, iteration + 1) + ';\n';
+                            break;
+                        }
+                        if (object[key] instanceof Date) {
+                            resultStringify +=  tabs + key +': ' + 'date' + ';\n';
+                            break;
+                        }
+                        if (object[key] instanceof Object) {
+                            resultStringify += tabs + key +': ' + stringify(object[key], tab + 1) + ';\n';
+                            break;
+                        }
+                        if (object[key] === null) {
+                            resultStringify +=  tabs + key +': ' + 'null' + ';\n';
+                            break;
+                        }
+                    default:
+                        console.log('что за фигня здесь происходит?');
+                }
+            }
+
+            function stringifyArrays(array, tab, iteration, nextConfigIteration) {
+                let resObjectsInArrays ;
+                currentType[iteration] = [];
+
+                if (nextConfigIteration) {configIteration++;}
+
+                if (array.length === 0) {
+                    return 'any[]';
+                }
+
+                // make array of types of arguments entries
+                array.forEach(function(arrayElement, i) {
+                    currentType[iteration][i] = '';
+                    switch (typeof arrayElement) {
+                        case 'number':
+                            currentType[iteration][i] = 'number';
+                            break;
+                        case 'string':
+                            currentType[iteration][i] = 'string';
+                            break;
+                        case 'boolean':
+                            currentType[iteration][i] = 'boolean';
+                            break;
+                        case 'function':
+                            currentType[iteration][i] = 'function';
+                            break;
+                        case 'undefined':
+                            currentType[iteration][i] = 'any';
+                            break;
+                        case 'object':
+                            if (arrayElement instanceof Array) {
+                                currentType[iteration][i] = 'array';
+                                break;
+                            }
+                            if (arrayElement instanceof Date) {
+                                currentType[iteration][i] = 'date';
+                                break;
+                            }
+                            if (arrayElement instanceof Object) {
+                                currentType[iteration][i] = 'object';
+                                break;
+                            }
+                            if (arrayElement === null) {
+                                currentType[iteration][i] = 'null';
+                                break;
+                            }
+                        default:
+                            console.log('что за фигня здесь происходит?');
+                    }
+                });
+
+                // service functions
+                function uniq(array) {
+                    if (array.length === 0) {
+                        return [];
+                    }
+                    let uniqueResult = [array[0]];
+
+                    array.forEach(function(arrayElement) {
+                        let isUniqEl = true;
+                        if (uniqueResult.some(element => element === arrayElement)) {
+                            isUniqEl = false;
+                        }
+                        if (isUniqEl) {
+                            uniqueResult[uniqueResult.length]= arrayElement;
+                        }
+                    });
+                    return uniqueResult;
+                }
+
+                function mergeArrays(bigArray) {
+                    let merged = [];
+                    bigArray.forEach(function (smallArray) {
+                        if (smallArray.length === 0) {return}
+                        smallArray.forEach( function (element) {
+                            merged.push(element);
+                        })
+                    });
+                    return merged;
+                }
+
+                // main logic, make decision depending on type of arguments entries
+                if ((!currentType[iteration].includes('object')) && (!currentType[iteration].includes('array'))) {
+                    currentType[iteration] = uniq(currentType[iteration]);
+
+                    if (currentType[iteration].length === 1) {
+                        return  currentType[iteration][0]  + '[]';
+                    }
+
+                    return '(' +currentType[iteration].join('|')+ ')' + '[]';
+                }
+
+                if ((!currentType[iteration].includes('object')) && (currentType[iteration].includes('array'))) {
+
+                    // just to handle arrays in config[configIteration]
+                    if (nextConfigIteration) {
+                        if (uniq(currentType[iteration]).length === 1)  {
+                            // we merge entries of arrays (currentType[iteration][...]) to common array currentType[iteration] and parse it recursively
+                            currentType[iteration] = mergeArrays(array);
+                            return stringifyArrays(currentType[iteration], tab, iteration) + '[]';
+                        }
+                    }
+
+                    // more common case: array have arrays and simple types
+                    array.forEach(function(element, index) {
+                        if ((typeof element === 'object') && (element instanceof Array)) {
+                            if (element.length === 0) {
+                                currentType[iteration][index] = 'any[]';
+                                return;
+                            }
+                            currentType[iteration][index] = stringifyArrays(element, tab, iteration + 1);
+                        }
+                    });
+
+                    currentType[iteration] = uniq(currentType[iteration]);
+                    resStringifyArrays = currentType[iteration].join('|');
+
+                    if (resStringifyArrays.indexOf('|') !== -1) {
+                        resStringifyArrays = '(' + resStringifyArrays + ')';
+                    }
+                    return  resStringifyArrays  + '[]';
+                }
+
+                if ((currentType[iteration].includes('object')) && (currentType[iteration].includes('array'))) {
+
+                    array.forEach(function(element, index) {
+                        if (typeof element === 'object') {
+                            if (element instanceof Array) {
+                                if (element.length === 0) {
+                                    currentType[iteration][index] = 'any[]';
+                                    return;
+                                }
+                                currentType[iteration][index] = stringifyArrays(element, tab, iteration + 1);
+                                return;
+                            }
+                            if (element instanceof Object) {
+                                if (Object.keys(element).length === 0) {
+                                    currentType[iteration][index] = '{}';
+                                    return;
+                                }
+                                tab = tab + 1;
+                                currentType[iteration][index] = stringify(element, tab);
+                            }
+                        }
+                    });
+                    currentType[iteration] = uniq(currentType[iteration]);
+                    resStringifyArrays = currentType[iteration].join('|');
+
+                    if (resStringifyArrays.indexOf('|') !== -1) {
+                        resStringifyArrays = '(' + resStringifyArrays + ')';
+                    }
+
+                    return resStringifyArrays + '[]';
+                }
+
+                if ((currentType[iteration].includes('object')) && (!currentType[iteration].includes('array'))) {
+
+                    // if currentType[iteration] has just objects (could be empty)
+                    if (uniq(currentType[iteration]).length === 1) {
+                        configIteration = configIteration + 1;
+                        return  stringifyObjectsInArrays(array, tab, configIteration)  + '[]';
+                    }
+
+                    // if currentType[iteration] has objects and simple types
+                    array.forEach(function (element, index) {
+                        if ((typeof element === 'object') && (element instanceof Object)) {
+                            if (Object.keys(element).length === 0) {
+                                currentType[iteration][index] = '{}';
+                                return;
+                            }
+                            currentType[iteration][index] = stringify(element, tab + 1);
+                        }
+                    });
+
+                    currentType[iteration] = uniq(currentType[iteration]);
+                    resStringifyArrays = currentType[iteration].join('|');
+
+                    return  '(' + resStringifyArrays + ')' + '[]';
+                }
+
+                function stringifyObjectsInArrays(array, tab, configIteration) {
+                    resObjectsInArrays = '';
+                    requiredKeys[configIteration] = Object.keys(array[0]);// just initial assumption
+                    allKeys[configIteration] = Object.keys(array[0]);// just initial assumption
+                    config[configIteration] = {};
+
+                    // check requiredKeys, remove from requiredKeys not required
+                    array.forEach(function(objectInArray, k, array) {
+                        //if array has empty object, we makes all keys not required
+                        if (Object.keys(objectInArray).length === 0) {
+                            requiredKeys[configIteration] = [];
+                            return;
+                        }
+                        // if requiredKeys[configIteration] === [], this is ignored (unless non-wraped code instead 'function')
+                        requiredKeys[configIteration].forEach(function(key, index, reqKeys) {
+                            if (Object.keys(objectInArray).indexOf(key) === -1) {
+                                reqKeys.splice(index, 1);
+                            }
+                        });
+                        // should execute even requiredKeys[configIteration] === []
+                        // fill up array of all possible keys
+                        allKeys[configIteration] = allKeys[configIteration].concat(Object.keys(objectInArray));
+                    });
+                    // remove from allKeys all duplicating keys
+                    allKeys[configIteration] = uniq(allKeys[configIteration]);
+
+                    // to avoid errors with 'undefined'
+                    allKeys[configIteration].forEach(function (key) {
+                        config[configIteration][key] = [];
+                    });
+
+                    // here we fill up config = its object with collected keys from all objects in considered array
+                    // value of keys = arrays of collected values from all objects in considered array
+                    array.forEach(function(obj) {
+                        for (let k in obj) {
+                            config[configIteration][k][config[configIteration][k].length] = obj[k];
+                        }
+                    });
+
+                    for (let k in config[configIteration]) {
+                        iteration = iteration + 1;
+                        config[configIteration][k] = stringifyArrays(config[configIteration][k], tab + 1, iteration, true);
+                        // removes '[]' from the end of values config[configIteration][k]
+                        config[configIteration][k] = config[configIteration][k].slice(0, config[configIteration][k].length - 2);
+                        // adds '?' to not required keys
+                        if (requiredKeys[configIteration].indexOf(k) === -1) {
+                            let reqKey = k + '?';
+                            config[configIteration][reqKey] = config[configIteration][k];
+                            delete config[configIteration][k];
+                        }
+                    }
+
+                    resObjectsInArrays = '{' + '\n';
+
+                    for (let k in config[configIteration]) {
+                        resObjectsInArrays = resObjectsInArrays +  '\t'.repeat(tab+1) + '\t' + k + ': ' + config[configIteration][k] + ';' + '\n';
+                    }
+
+                    resObjectsInArrays = resObjectsInArrays + '\t'.repeat(tab + 1) + '}';
+
+                    //output of stringifyObjectsInArrays
+                    return resObjectsInArrays;
+                }
+
+                if (resStringifyArrays.indexOf('|') !== -1) {
+                    resStringifyArrays = '(' + resStringifyArrays + ')';
+                }
+
+                // output of 'stringifyArrays',
+                return  resStringifyArrays  + '[]';
+            }
+
+            // output of 'stringify', 'resultStringify' is new in each iteration
+            return ' {\n' + resultStringify +'\t'.repeat(tab) +  '}';
+        }
+
+        // output of 'generateInterface'
+        return 'declare interface IObj' + stringify(object, 0) + ';';
+    }
+</script>
+</body>
+</html>
+
+
+

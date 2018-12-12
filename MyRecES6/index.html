@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>generateInterface</title>
+</head>
+<body>
+<p>
+    Задачка:
+    создать генератор typscript-интерфейсов<br>
+    создать ф-ю generateInterface, которая на вход принимает объект (или массив)
+    ф-я фолжна вернуть строку в которой описан интерфейс объекта
+</p>
+<p>
+    Например:
+</p>
+<p>
+<pre>
+var obj = {
+	id: 123,
+	name: 'testObj',
+	data: {
+		prop1: 'abc'
+		prop2: true
+	}
+};
+</pre>
+<p>
+    generateInterface(obj);
+</p>
+<p>
+    Должна вернуть строку (с переносами строк) в виде:
+</p>
+<p>
+<pre>
+declare interface IObj {
+	id: number;
+	name: string;
+	data: {
+		prop1: string;
+		prop2: boolean;
+	}
+};
+
+</pre>
+</p>
+<p>
+    Обрати внимание что:
+    1) IObj - высосано с пальца.
+    2) объект obj содержит свойство data, которое тоже объект.
+    Значит тут должна быть применена рекурсия(!!!!), что бы ф-я могла обрабатывать объекты любой степени вложености.
+</p>
+<p>
+    Пример 2:
+<pre>
+var obj = {
+	id: 123,
+	name: 'testObj',
+	data: [{
+		prop1: 'abc',
+		prop2: true
+	}, {
+		prop1: 'def',
+		prop3: 300
+	}],
+	otherData: [1, 2, 3]
+};
+</pre>
+</p>
+
+<p>
+    Если какое либо свойство содержит массив, то предполагаем что внутри массива "однотипные" сущности.
+    В примере выше есть 2 массива, первый с объектами второй с числами.
+    Первый массив сложнее, так как у объектов не совпадают свойства.
+    Те свойста, которые встречаются не у всех объектов - считаем "необязательными" (это prop2 и prop3) и помечаем их
+    знаком "?"
+</p>
+<p>
+    Должно выглядеть вот так:
+</p>
+<p>
+<pre>
+declare interface IObj {
+    id: number;
+    name: string;
+    data: {
+        prop1: string;
+        prop2?: boolean;
+        prop3?: number;
+    }[],
+    otherData: number[]
+};
+</pre>
+</p>
+<script src="src.js"></script>
+<script>
+    function generateInterface(object) {
+        function stringify(object, tab) {
+            let iteration = -1;
+            let tabs = '\t'.repeat(tab + 1);
+            let resultStringify = '';
+            let resStringifyArray = '';
+            let currentType = [];
+            let configIteration = -1;
+            let allKeys = [];
+            let config = [];
+            let requiredKeys = [];
+            let debugMode = false;
+
+            Object.keys(object).forEach((key) => {
+                let property = object[key];
+                let tempType;
+                switch (typeof property) {
+                    case 'undefined':
+                        tempType = 'any';
+                        break;
+                    case 'object':
+                        if (property instanceof Array) {
+                            resStringifyArray = '';
+                            tempType = stringifyArray(property, tab, iteration + 1);
+                        } else if (property instanceof Date) {
+                            tempType = 'Date';
+                        } else if (property instanceof Object) {
+                            tempType = stringify(property, tab + 1);
+                        } else if (property === null) {
+                            tempType = 'any';
+                        }
+                        break;
+                    default:
+                        tempType = typeof property;
+                }
+                resultStringify += `${tabs}${key}: ${tempType};\n`;
+            });
+
+            function stringifyArray(array, tab, iteration, nextConfigIteration) {
+                let resObjectsInArrays;
+                currentType[iteration] = [];
+
+                if (array.length === 0) {
+                    return 'any[]';
+                }
+
+                if (nextConfigIteration) {
+                    configIteration++;
+                }
+
+                array.forEach((arrayElement, i) => {
+                    switch (typeof arrayElement) {
+                        case 'undefined':
+                            currentType[iteration][i] = 'any';
+                            break;
+                        case 'object':
+                            if (arrayElement instanceof Array) {
+                                currentType[iteration][i] = 'array';
+                            } else if (arrayElement instanceof Date) {
+                                currentType[iteration][i] = 'Date';
+                            } else if (arrayElement instanceof Object) {
+                                currentType[iteration][i] = 'object';
+                            } else if (arrayElement === null) {
+                                currentType[iteration][i] = 'any';
+                            }
+                            break;
+                        default:
+                            currentType[iteration][i] = typeof arrayElement;
+                    }
+                });
+
+                function uniq(array) {
+                    if (array.length === 0) {
+                        return [];
+                    }
+                    let uniqueResult = [];
+
+                    array.forEach((arrayElement) => {
+                        let isUniqEl = !(uniqueResult.some(element => element === arrayElement));
+
+                        if (isUniqEl) {
+                            uniqueResult.push(arrayElement);
+                        }
+                    });
+                    return uniqueResult;
+                }
+
+                function mergeArrays(bigArray) {
+                    let merged = [];
+                    bigArray.forEach((smallArray) => {
+                        merged.push(...smallArray);
+                    });
+                    return merged;
+                }
+
+                function hasJustObjects(types) {
+                    return ((uniq(types).length === 1) && (types.includes('object')))
+                }
+
+                function hasJustArrays(types) {
+                    return ((uniq(types).length === 1) && (types.includes('array')))
+                }
+
+                if (debugMode) {
+                    //console.log('  is',  );
+                    console.log('iteration is', iteration);
+                    console.log('currentType[iteration] is', currentType[iteration]);
+                    console.log('hasJustObjects is', hasJustObjects(currentType[iteration]));
+                    console.log('hasJustArrays is', hasJustArrays(currentType[iteration]));
+                }
+
+                if (hasJustObjects(currentType[iteration])) {
+                    configIteration++;
+                    return `${stringifyObjectsInArrays(array, tab, configIteration)}[]`;
+                } else if (hasJustArrays(currentType[iteration])) {
+
+                    if (nextConfigIteration) {
+                        currentType[iteration] = mergeArrays(array);
+                        return `${stringifyArray(currentType[iteration], tab, iteration)}[]`;
+
+                    }
+
+                    array.forEach((element, index) => {
+
+                        if (element.length === 0) {
+                            currentType[iteration][index] = 'any[]';
+                            return;
+                        }
+
+                        currentType[iteration][index] = stringifyArray(element, tab, iteration + 1);
+                    });
+
+                    currentType[iteration] = uniq(currentType[iteration]);
+
+                    if (currentType[iteration].length === 1) {
+                        return `${currentType[iteration][0]}[]`;
+                    }
+
+                    return `(${currentType[iteration].join('|')})[]`;
+
+                } else {
+                    array.forEach((element, index) => {
+
+                        if (element instanceof Array) {
+                            if (element.length === 0) {
+                                currentType[iteration][index] = 'any[]';
+                                return;
+                            }
+                            currentType[iteration][index] = stringifyArray(element, tab, iteration + 1);
+                        } else if ((element instanceof Object) && !(element instanceof Date)) {
+                            if (Object.keys(element).length === 0) {
+                                currentType[iteration][index] = '{}';
+                                return;
+                            }
+                            currentType[iteration][index] = stringify(element, tab + 1);
+                        }
+                    });
+                    currentType[iteration] = uniq(currentType[iteration]);
+
+                    if (currentType[iteration].length === 1) {
+                        return `${currentType[iteration][0]}[]`;
+                    }
+
+                    return `(${currentType[iteration].join('|')})[]`;
+                }
+
+                function stringifyObjectsInArrays(array, tab, configIteration) {
+                    resObjectsInArrays = '';
+                    requiredKeys[configIteration] = Object.keys(array[0]);
+                    allKeys[configIteration] = [];
+                    config[configIteration] = {};
+
+                    array.forEach((objectInArray) => {
+                        if (Object.keys(objectInArray).length === 0) {
+                            requiredKeys[configIteration] = [];
+                            return;
+                        }
+                        requiredKeys[configIteration].forEach((key, index, reqKeys) => {
+                            if (Object.keys(objectInArray).indexOf(key) === -1) {
+                                reqKeys.splice(index, 1);
+                            }
+                        });
+                        allKeys[configIteration] = allKeys[configIteration].concat(Object.keys(objectInArray));
+                    });
+                    allKeys[configIteration] = uniq(allKeys[configIteration]);
+
+                    allKeys[configIteration].forEach((key) => {
+                        config[configIteration][key] = [];
+                    });
+
+                    array.forEach((obj) => {
+                        Object.keys(obj).forEach((key) => {
+                            config[configIteration][key].push(obj[key]);
+                        });
+                    });
+
+                    Object.keys(config[configIteration]).forEach((k) => {
+                        iteration = iteration + 1;
+                        config[configIteration][k] = stringifyArray(config[configIteration][k], tab + 1, iteration, true);
+                        config[configIteration][k] = config[configIteration][k].slice(0, config[configIteration][k].length - 2);
+                        if (requiredKeys[configIteration].indexOf(k) === -1) {
+                            let reqKey = `${k}?`;
+                            config[configIteration][reqKey] = config[configIteration][k];
+                            delete config[configIteration][k];
+                        }
+                    });
+
+                    resObjectsInArrays = `{\n`;
+
+                    Object.keys(config[configIteration]).forEach((k) => {
+                        resObjectsInArrays += `${'\t'.repeat(tab + 1)}\t${k}: ${config[configIteration][k]};\n`;
+                    });
+
+                    resObjectsInArrays += `${'\t'.repeat(tab + 1)}}`;
+
+                    return resObjectsInArrays;
+                }
+            }
+
+            return `{\n${resultStringify}${'\t'.repeat(tab)}}`;
+        }
+
+        return `declare interface IObj ${stringify(object, 0)};`;
+    }
+</script>
+</body>
+</html>
+
+
+
